@@ -4,6 +4,7 @@
 install_ss_panel_mod_v3(){
 	yum -y remove httpd
 	yum install -y unzip zip git
+	yum update -y nss curl libcurl 
 	num=$1
 	if [ "${num}" != "1" ]; then
   	  wget -c --no-check-certificate https://raw.githubusercontent.com/mmmwhy/ss-panel-and-ss-py-mu/master/lnmp1.4.zip && unzip lnmp1.4.zip && rm -rf lnmp1.4.zip && cd lnmp1.4 && chmod +x install.sh && ./install.sh lnmp
@@ -22,7 +23,7 @@ install_ss_panel_mod_v3(){
 	chattr +i public/.user.ini
 	wget -N -P  /usr/local/nginx/conf/ --no-check-certificate https://raw.githubusercontent.com/mmmwhy/ss-panel-and-ss-py-mu/master/nginx.conf
 	service nginx restart
-	IPAddress=`wget http://members.3322.org/dyndns/getip -O - -q ; echo`;
+	IPAddress=`wget http://whatismyip.akamai.com/ -O - -q ; echo`;
 	sed -i "s#103.74.192.11#${IPAddress}#" /home/wwwroot/default/sql/sspanel.sql
 	mysql -uroot -proot -e"create database sspanel;" 
 	mysql -uroot -proot -e"use sspanel;" 
@@ -70,13 +71,13 @@ python_test(){
 	pypi='mirror-ord.pypi.io'
 	doubanio='pypi.doubanio.com'
 	pubyun='pypi.pubyun.com'	
-	tsinghua_PING=`ping -c 1 -w 1 $tsinghua|grep time=|awk '{print $7}'|sed "s/time=//"`
-	pypi_PING=`ping -c 1 -w 1 $pypi|grep time=|awk '{print $7}'|sed "s/time=//"`
-	doubanio_PING=`ping -c 1 -w 1 $doubanio|grep time=|awk '{print $7}'|sed "s/time=//"`
-	pubyun_PING=`ping -c 1 -w 1 $pubyun|grep time=|awk '{print $7}'|sed "s/time=//"`
+	tsinghua_PING=`ping -c 1 -w 1 $tsinghua|grep time=|awk '{print $8}'|sed "s/time=//"`
+	pypi_PING=`ping -c 1 -w 1 $pypi|grep time=|awk '{print $8}'|sed "s/time=//"`
+	doubanio_PING=`ping -c 1 -w 1 $doubanio|grep time=|awk '{print $8}'|sed "s/time=//"`
+	pubyun_PING=`ping -c 1 -w 1 $pubyun|grep time=|awk '{print $8}'|sed "s/time=//"`
 	echo "$tsinghua_PING $tsinghua" > ping.pl
 	echo "$pypi_PING $pypi" >> ping.pl
-	echo "$doubanio_PING $doubanio" > ping.pl
+	echo "$doubanio_PING $doubanio" >> ping.pl
 	echo "$pubyun_PING $pubyun" >> ping.pl
 	pyAddr=`sort -V ping.pl|sed -n '1p'|awk '{print $2}'`
 	if [ "$pyAddr" == "$tsinghua" ]; then
@@ -103,6 +104,7 @@ install_centos_ssr(){
 	rm -rf *.rpm
 	yum -y update --exclude=kernel*	
 	yum -y install git gcc python-setuptools lsof lrzsz python-devel libffi-devel openssl-devel iptables
+	yum -y update nss curl libcurl 
 	yum -y groupinstall "Development Tools" 
 	#第一次yum安装 supervisor pip
 	yum -y install supervisor python-pip
@@ -136,7 +138,7 @@ install_centos_ssr(){
 	./configure && make -j2 && make install
 	echo /usr/local/lib > /etc/ld.so.conf.d/usr_local_lib.conf
 	ldconfig
-	git clone -b manyuser https://github.com/glzjin/shadowsocks.git "/root/shadowsocks"
+	git clone -b manyuser https://github.com/mmmwhy/shadowsocks.git "/root/shadowsocks"
 	cd /root/shadowsocks
 	chkconfig supervisord on
 	#第一次安装
@@ -165,6 +167,7 @@ install_centos_ssr(){
 	fi	
 	systemctl stop firewalld.service
 	systemctl disable firewalld.service
+	cd /root/shadowsocks
 	cp apiconfig.py userapiconfig.py
 	cp config.json user-config.json
 }
@@ -173,6 +176,7 @@ install_ubuntu_ssr(){
 	apt-get install supervisor lsof -y
 	apt-get install build-essential wget -y
 	apt-get install iptables git -y
+	Libtest
 	wget --no-check-certificate $libAddr
 	tar xf libsodium-1.0.13.tar.gz && cd libsodium-1.0.13
 	./configure && make -j2 && make install
@@ -232,14 +236,95 @@ install_node(){
 	read -p "Please input your muKey(like:mupass): " Usermukey
 	read -p "Please input your Node_ID(like:1): " UserNODE_ID
 	install_ssr_for_each
-	IPAddress=`wget http://members.3322.org/dyndns/getip -O - -q ; echo`;
 	cd /root/shadowsocks
 	echo -e "modify Config.py...\n"
 	sed -i "s#'zhaoj.in'#'jd.hk'#" /root/shadowsocks/userapiconfig.py
-	Userdomain=${Userdomain:-"http://${IPAddress}"}
+	Userdomain=${Userdomain:-"http://127.0.0.1"}
 	sed -i "s#https://zhaoj.in#${Userdomain}#" /root/shadowsocks/userapiconfig.py
 	Usermukey=${Usermukey:-"mupass"}
 	sed -i "s#glzjin#${Usermukey}#" /root/shadowsocks/userapiconfig.py
+	UserNODE_ID=${UserNODE_ID:-"3"}
+	sed -i '2d' /root/shadowsocks/userapiconfig.py
+	sed -i "2a\NODE_ID = ${UserNODE_ID}" /root/shadowsocks/userapiconfig.py
+	# 启用supervisord
+	supervisorctl shutdown
+	#某些机器没有echo_supervisord_conf 
+	wget -N -P  /etc/ --no-check-certificate  https://raw.githubusercontent.com/mmmwhy/ss-panel-and-ss-py-mu/master/supervisord.conf
+	supervisord
+	#iptables
+	iptables -F
+	iptables -X  
+	iptables -I INPUT -p tcp -m tcp --dport 22:65535 -j ACCEPT
+	iptables -I INPUT -p udp -m udp --dport 22:65535 -j ACCEPT
+	iptables-save >/etc/sysconfig/iptables
+	iptables-save >/etc/sysconfig/iptables
+	echo 'iptables-restore /etc/sysconfig/iptables' >> /etc/rc.local
+	echo "/usr/bin/supervisord -c /etc/supervisord.conf" >> /etc/rc.local
+	chmod +x /etc/rc.d/rc.local
+	echo "#############################################################"
+	echo "# 安装完成，节点即将重启使配置生效                          #"
+	echo "# Github: https://github.com/mmmwhy/ss-panel-and-ss-py-mu   #"
+	echo "# Author: 91vps                                             #"
+	echo "#############################################################"
+	reboot now
+}
+install_node_db(){
+	clear
+	echo
+	echo "#############################################################"
+	echo "# One click Install Shadowsocks-Python-Manyuser             #"
+	echo "# Github: https://github.com/mmmwhy/ss-panel-and-ss-py-mu   #"
+	echo "# Author: 91vps                                             #"
+	echo "#############################################################"
+	echo
+	#Check Root
+	[ $(id -u) != "0" ] && { echo "Error: You must be root to run this script"; exit 1; }
+	#check OS version
+	check_sys(){
+		if [[ -f /etc/redhat-release ]]; then
+			release="centos"
+		elif cat /etc/issue | grep -q -E -i "debian"; then
+			release="debian"
+		elif cat /etc/issue | grep -q -E -i "ubuntu"; then
+			release="ubuntu"
+		elif cat /etc/issue | grep -q -E -i "centos|red hat|redhat"; then
+			release="centos"
+		elif cat /proc/version | grep -q -E -i "debian"; then
+			release="debian"
+		elif cat /proc/version | grep -q -E -i "ubuntu"; then
+			release="ubuntu"
+		elif cat /proc/version | grep -q -E -i "centos|red hat|redhat"; then
+			release="centos"
+	  fi
+	}
+	install_ssr_for_each(){
+		check_sys
+		if [[ ${release} = "centos" ]]; then
+			install_centos_ssr
+		else
+			install_ubuntu_ssr
+		fi
+	}
+	# 取消文件数量限制
+	sed -i '$a * hard nofile 512000\n* soft nofile 512000' /etc/security/limits.conf
+	read -p "Please input your MYSQL_HOST: " MYSQL_HOST
+	read -p "Please input your MYSQL_DB: " MYSQL_DB 
+	read -p "Please input your MYSQL_USER: " MYSQL_USER 
+	read -p "Please input your MYSQL_PASS: " MYSQL_PASS 
+	read -p "Please input your Node_ID(like:1): " UserNODE_ID
+	install_ssr_for_each
+	cd /root/shadowsocks
+	echo -e "modify Config.py...\n"
+	sed -i "s#'modwebapi'#'glzjinmod'#" /root/shadowsocks/userapiconfig.py #改成数据库对接
+	sed -i "s#'zhaoj.in'#'jd.hk'#" /root/shadowsocks/userapiconfig.py #混淆设置
+	MYSQL_HOST=${MYSQL_HOST:-"http://127.0.0.1"}
+	sed -i "s#MYSQL_HOST = '127.0.0.1'#MYSQL_HOST = '${MYSQL_HOST}'#" /root/shadowsocks/userapiconfig.py
+	MYSQL_DB=${MYSQL_DB:-"root"}
+	sed -i "s#MYSQL_DB = 'shadowsocks'#MYSQL_DB = '${MYSQL_DB}'#" /root/shadowsocks/userapiconfig.py
+	MYSQL_USER=${MYSQL_USER:-"root"}
+	sed -i "s#MYSQL_USER = 'ss'#MYSQL_USER = '${MYSQL_USER}'#" /root/shadowsocks/userapiconfig.py
+	MYSQL_PASS=${MYSQL_PASS:-"root"}
+	sed -i "s#MYSQL_PASS = 'ss'#MYSQL_PASS = '${MYSQL_PASS}'#" /root/shadowsocks/userapiconfig.py
 	UserNODE_ID=${UserNODE_ID:-"3"}
 	sed -i '2d' /root/shadowsocks/userapiconfig.py
 	sed -i "2a\NODE_ID = ${UserNODE_ID}" /root/shadowsocks/userapiconfig.py
@@ -304,14 +389,15 @@ echo "# Github: https://github.com/mmmwhy/ss-panel-and-ss-py-mu   #"
 echo "# Author: 91vps                                             #"
 echo "# Please choose the server you want                         #"
 echo "# 1  SS-V3_mod_panel and node One click Install             #"
-echo "# 2  SS-node One click Install                              #"
+echo "# 2  SS-node modwebapi One click Install                    #"
+echo "# 3  SS-node Database  One click Install                    #"
 echo "#############################################################"
 echo
 num=$1
 if [ "${num}" == "1" ]; then
     install_panel_and_node 1
 else
-    stty erase '^H' && read -p " 请输入数字 [1-2]:" num
+    stty erase '^H' && read -p " 请输入数字 [1-3]:" num
 		case "$num" in
 		1)
 		install_panel_and_node
@@ -319,8 +405,11 @@ else
 		2)
 		install_node
 		;;
+		3)
+		install_node_db
+		;;
 		*)
-		echo "请输入正确数字 [1-2]"
+		echo "请输入正确数字 [1-3]"
 		;;
 	esac
 fi
